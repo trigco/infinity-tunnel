@@ -31,6 +31,20 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o $GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libdnstt.so ./dnstt-client
           CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libdnstt.so ./dnstt-client
 
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+          local-cache: true
+
+      - name: Build tun2socks core (gomobile)
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          mkdir -p app/libs
+          cd tun2socks-go
+          gomobile init
+          gomobile bind -target=android/arm64,android/arm -androidapi 26 -o $GITHUB_WORKSPACE/app/libs/tun2socks.aar .
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
