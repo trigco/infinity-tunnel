@@ -37,8 +37,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -483,10 +481,9 @@ fun ConfigPasswordField(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         trailingIcon = {
             IconButton(onClick = onToggleVisibility) {
-                Icon(
-                    if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = "Toggle password visibility",
-                    tint = Palette.TextFaint
+                Text(
+                    if (visible) "Hide" else "Show",
+                    color = Palette.Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Bold
                 )
             }
         },
