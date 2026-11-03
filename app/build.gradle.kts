@@ -50,4 +50,5 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
     implementation("com.github.mwiede:jsch:0.2.20")
+    implementation(files("libs/tun2socks.aar"))
 }

@@ -1,9 +1,13 @@
 package com.mominul.infinitytunnel
 
+import android.content.Intent
+import android.net.VpnService
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -127,13 +131,58 @@ fun App() {
     var screen by remember { mutableStateOf(Screen.Home) }
     var conn by remember { mutableStateOf(ConnState.Disconnected) }
     var tick by remember { mutableStateOf(0) }
+    var vpnMode by remember { mutableStateOf(false) }
+
+    fun startVpnService() {
+        val intent = Intent(context, TunnelVpnService::class.java).apply {
+            action = TunnelVpnService.ACTION_START
+            putExtra(TunnelVpnService.EXTRA_SOCKS_PORT, config.socksPort)
+            putExtra(TunnelVpnService.EXTRA_MTU, config.mtu)
+        }
+        context.startService(intent)
+    }
+
+    fun stopVpnService() {
+        val intent = Intent(context, TunnelVpnService::class.java).apply {
+            action = TunnelVpnService.ACTION_STOP
+        }
+        context.startService(intent)
+    }
+
+    val vpnConsent = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            startVpnService()
+        } else {
+            LogBus.add("VPN permission denied — staying in proxy mode")
+        }
+    }
+
+    fun maybeStartVpn() {
+        if (!vpnMode) return
+        val prepare = VpnService.prepare(context)
+        if (prepare != null) {
+            vpnConsent.launch(prepare)
+        } else {
+            startVpnService()
+        }
+    }
 
     LaunchedEffect(Unit) {
+        var wasRunning = false
         TunnelEngine.onStateChanged = { s ->
             conn = when (s) {
                 TunnelEngine.State.Running -> ConnState.Connected
                 TunnelEngine.State.Starting -> ConnState.Connecting
                 else -> ConnState.Disconnected
+            }
+            if (s == TunnelEngine.State.Running && !wasRunning) {
+                wasRunning = true
+                maybeStartVpn()
+            }
+            if (s == TunnelEngine.State.Stopped || s == TunnelEngine.State.Failed) {
+                wasRunning = false
             }
         }
         while (true) {
@@ -153,6 +202,7 @@ fun App() {
             }
             TunnelEngine.start(context, config)
         } else {
+            stopVpnService()
             TunnelEngine.stop()
         }
     }
@@ -164,7 +214,7 @@ fun App() {
     ) {
         Box(modifier = Modifier.weight(1f)) {
             when (screen) {
-                Screen.Home -> HomeScreen(config, conn, onToggle = { toggleConnect() })
+                Screen.Home -> HomeScreen(config, conn, vpnMode, onModeChange = { vpnMode = it }, onToggle = { toggleConnect() })
                 Screen.Config -> ConfigScreen(
                     initial = config,
                     onSave = {
@@ -183,7 +233,7 @@ fun App() {
 
 // ---------- home ----------
 @Composable
-fun HomeScreen(config: TunnelConfig, conn: ConnState, onToggle: () -> Unit) {
+fun HomeScreen(config: TunnelConfig, conn: ConnState, vpnMode: Boolean, onModeChange: (Boolean) -> Unit, onToggle: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -211,14 +261,41 @@ fun HomeScreen(config: TunnelConfig, conn: ConnState, onToggle: () -> Unit) {
 
         Spacer(Modifier.height(26.dp))
         StatusPill(conn)
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !vpnMode,
+                enabled = conn == ConnState.Disconnected,
+                onClick = { onModeChange(false) },
+                label = { Text("Proxy mode") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Palette.Accent2,
+                    selectedLabelColor = Color.White,
+                    containerColor = Palette.CardSoft,
+                    labelColor = Palette.TextMuted
+                )
+            )
+            FilterChip(
+                selected = vpnMode,
+                enabled = conn == ConnState.Disconnected,
+                onClick = { onModeChange(true) },
+                label = { Text("VPN mode") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Palette.Accent2,
+                    selectedLabelColor = Color.White,
+                    containerColor = Palette.CardSoft,
+                    labelColor = Palette.TextMuted
+                )
+            )
+        }
+        Spacer(Modifier.height(22.dp))
         ConnectButton(conn, onToggle)
         Spacer(Modifier.height(24.dp))
         Text(
             when (conn) {
                 ConnState.Disconnected -> "Tap to connect"
                 ConnState.Connecting -> "Connecting…"
-                ConnState.Connected -> "SOCKS5 ready • 127.0.0.1:${config.socksPort}"
+                ConnState.Connected -> if (vpnMode) "VPN on — all apps use the tunnel" else "SOCKS5 ready • 127.0.0.1:${config.socksPort}"
             },
             color = Palette.TextMuted, fontSize = 14.sp
         )
