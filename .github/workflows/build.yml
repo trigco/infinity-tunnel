@@ -25,7 +25,7 @@ jobs:
 
       - name: Build dnstt-client for Android ABIs
         run: |
-          git clone --depth 1 https://www.bamsoftware.com/git/dnstt.git /tmp/dnstt
+          git clone https://www.bamsoftware.com/git/dnstt.git /tmp/dnstt
           mkdir -p app/src/main/jniLibs/arm64-v8a app/src/main/jniLibs/armeabi-v7a
           cd /tmp/dnstt
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o $GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libdnstt.so ./dnstt-client
