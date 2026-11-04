@@ -31,6 +31,34 @@ object TunnelEngine {
         onStateChanged?.invoke(s)
     }
 
+    /**
+     * The dnstt engine is an executable shipped as a jniLib. Prefer the copy
+     * Android extracted into nativeLibraryDir; if packaging left it inside
+     * the APK (no on-disk file), pull it out of the APK into filesDir and
+     * mark it executable ourselves.
+     */
+    private fun resolveEngineBinary(context: Context): File? {
+        val native = File(context.applicationInfo.nativeLibraryDir, "libdnstt.so")
+        if (native.exists()) return native
+        return try {
+            val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: return null
+            val outDir = File(context.filesDir, "engine").apply { mkdirs() }
+            val out = File(outDir, "libdnstt.so")
+            java.util.zip.ZipFile(context.applicationInfo.sourceDir).use { zip ->
+                val entry = zip.getEntry("lib/$abi/libdnstt.so") ?: return null
+                zip.getInputStream(entry).use { input ->
+                    out.outputStream().use { input.copyTo(it) }
+                }
+            }
+            out.setExecutable(true)
+            LogBus.add("Engine binary self-extracted from APK ($abi)")
+            out
+        } catch (e: Exception) {
+            LogBus.add("ERROR: engine extract failed: ${e.message}")
+            null
+        }
+    }
+
     @Synchronized
     fun start(context: Context, config: TunnelConfig) {
         if (state == State.Starting || state == State.Running) return
@@ -41,9 +69,9 @@ object TunnelEngine {
     private fun startInternal(context: Context, config: TunnelConfig) {
         try {
             // 1) dnstt-client process
-            val binary = File(context.applicationInfo.nativeLibraryDir, "libdnstt.so")
-            if (!binary.exists()) {
-                LogBus.add("ERROR: dnstt engine binary missing (${binary.path})")
+            val binary = resolveEngineBinary(context)
+            if (binary == null) {
+                LogBus.add("ERROR: dnstt engine binary missing (not extracted, not in APK)")
                 setState(State.Failed)
                 return
             }

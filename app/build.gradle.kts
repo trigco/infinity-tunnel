@@ -12,8 +12,8 @@ android {
         applicationId = "com.mominul.infinitytunnel"
         minSdk = 26
         targetSdk = 33
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -33,6 +33,12 @@ android {
         compose = true
     }
     packaging {
+        jniLibs {
+            // The dnstt engine is a real executable, not a loadable library:
+            // it must be extracted to disk at install time, never run from
+            // inside the APK (AGP 8 defaults jniLibs to uncompressed/no-extract).
+            useLegacyPackaging = true
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
